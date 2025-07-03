@@ -21,9 +21,11 @@ aclient = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # --- RAG Setup for Tarot ---
 
 # Initialize Qdrant client and OpenAI embeddings
+# Make API key optional for local Docker deployments
+qdrant_api_key = os.getenv("QDRANT_API_KEY")
 qdrant_client = QdrantClient(
-    url=os.getenv("QDRANT_URL"), 
-    api_key=os.getenv("QDRANT_API_KEY"),
+    url=os.getenv("QDRANT_URL"),
+    api_key=qdrant_api_key if qdrant_api_key else None,
 )
 # Use the same embedding model as the one used to create the collection
 embeddings = OllamaEmbeddings(model="nomic-embed-text")
@@ -42,21 +44,22 @@ TAROT_SYSTEM_PROMPT = """你是一位專業的塔羅牌占卜師，你的任務�
 async def _run_tarot_tool(query: str) -> str:
     """The core logic for the tarot reading tool, using RAG with Qdrant."""
     try:
-        # 1. Embed the user's query
+        print("[Tarot Tool] 步驟 1: 開始向量化查詢...")
         query_vector = embeddings.embed_query(query)
+        print("[Tarot Tool] 步驟 2: 查詢已向量化，正在搜尋 Qdrant...")
 
-        # 2. Search for relevant cards in Qdrant
         search_results = qdrant_client.search(
             collection_name="tarot_cards_ollama_nomic-embed-text",
             query_vector=query_vector,
             limit=3,  # Retrieve the top 3 most relevant cards
             with_payload=True, # Include the card data in the result
         )
+        print(f"[Tarot Tool] 步驟 3: Qdrant 搜尋完成，找到 {len(search_results)} 個結果。")
 
         if not search_results:
             return "抱歉，我沒有找到與您問題相關的塔羅牌。可以請您換個方式問嗎？"
 
-        # 3. Prepare the context for the LLM
+        print("[Tarot Tool] 步驟 4: 正在為 LLM 準備上下文...")
         retrieved_cards_info = []
         for result in search_results:
             payload = result.payload
@@ -73,8 +76,8 @@ async def _run_tarot_tool(query: str) -> str:
 {context_for_llm}
 
 請基於以上牌義，為用戶提供一次完整、有深度的塔羅牌解讀。"""
+        print("[Tarot Tool] 步驟 5: 上下文已準備好，正在呼叫 LLM...")
 
-        # 4. Call the LLM to generate the final interpretation
         response = await aclient.chat.completions.create(
             model="gpt-4o",
             messages=[
@@ -84,8 +87,10 @@ async def _run_tarot_tool(query: str) -> str:
             temperature=0.7,
             max_tokens=800,
         )
+        print("[Tarot Tool] 步驟 6: LLM 呼叫成功。")
         return response.choices[0].message.content.strip()
     except Exception as e:
+        print(f"[Tarot Tool] 執行時發生錯誤: {e}")
         return f"Error in Tarot Tool: {e}"
 
 tarot_reading_tool = Tool(
@@ -113,7 +118,7 @@ JSON 應包含以下三個欄位：
 async def _run_emotion_tool(query: str) -> str:
     """The core logic for the emotion analysis tool."""
     try:
-        response = await client.chat.completions.create(
+        response = await aclient.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": EMOTION_SYSTEM_PROMPT},
@@ -156,7 +161,7 @@ STRATEGY_SYSTEM_PROMPT = """你是一位專業的策略顧問，擅長為用戶�
 async def _run_strategy_tool(query: str) -> str:
     """The core logic for the strategy tool."""
     try:
-        response = await client.chat.completions.create(
+        response = await aclient.chat.completions.create(
             model="gpt-4o",
             messages=[
                 {"role": "system", "content": STRATEGY_SYSTEM_PROMPT},
