@@ -17,6 +17,7 @@ from linebot.v3.messaging import (
     Configuration,          # LINE API 設定
     ApiClient,              # LINE API 客戶端
     MessagingApi,           # LINE 訊息 API
+    MessagingApiBlob,       # LINE 訊息 API (Blob)
     ReplyMessageRequest,    # 回覆訊息請求
     TextMessage,            # 文字訊息類型
     ImageMessage,           # 圖片訊息類型
@@ -414,8 +415,11 @@ async def handle_image_message(event: MessageEvent, line_bot_api: MessagingApi):
     logging.info(f"Received image message from {user_id}, message_id: {message_id}")
 
     try:
-        image_bytes = await (await line_bot_api.get_message_content(message_id)).read()
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        # Use MessagingApiBlob to get message content
+        with ApiClient(configuration) as api_client:
+            line_bot_api_blob = MessagingApiBlob(api_client)
+            image_bytes = line_bot_api_blob.get_message_content(message_id=message_id)
+            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
         
         response_data = await invoke_agent(user_id=user_id, image_base64=image_base64)
         ai_reply = response_data.get("reply", "抱歉，我現在有點問題，晚點再試一次。")
@@ -443,7 +447,10 @@ async def handle_audio_message(event: MessageEvent, line_bot_api: MessagingApi):
     logging.info(f"Received audio message from {user_id}, message_id: {message_id}")
 
     try:
-        audio_bytes = await (await line_bot_api.get_message_content(message_id)).read()
+        # Use MessagingApiBlob to get message content
+        with ApiClient(configuration) as api_client:
+            line_bot_api_blob = MessagingApiBlob(api_client)
+            audio_bytes = line_bot_api_blob.get_message_content(message_id=message_id)
 
         async with aiofiles.open("temp_audio.m4a", "wb") as f:
             await f.write(audio_bytes)
