@@ -113,14 +113,8 @@ from langchain_openai import ChatOpenAI
 from langchain_deepseek.chat_models import ChatDeepSeek
 
 def get_llm_dynamic(input_content: list) -> BaseChatModel:
-    has_image = any(item.get("type") == "image_url" for item in input_content)
-    has_audio = any(item.get("type") == "audio_url" or item.get("type") == "audio_base64" for item in input_content)
-    if has_image or has_audio:
-        # 圖片或音訊用 gpt-4o
-        return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
-    else:
-        # 純文字預設用 deepseek
-        return ChatDeepSeek(api_key=DEEPSEEK_API_KEY, model="deepseek-chat", temperature=0.7, streaming=True)
+    # Temporarily force ChatOpenAI for diagnostic purposes
+    return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
 
 from langchain_core.messages import HumanMessage
 
