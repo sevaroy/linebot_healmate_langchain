@@ -20,14 +20,14 @@ from langchain.memory import ConversationBufferWindowMemory
 
 # 添加 DeepSeek LLM 支援
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_community.chat_models import ChatDeepSeek
+from langchain_deepseek.chat_models import ChatDeepSeek
 
-from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool
+from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool
 
 # --- Agent Initialization ---
 
 # 1. Define the tools the agent can use
-tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool]
+tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool]
 
 # 2. 獲取環境變數
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
@@ -43,7 +43,7 @@ def get_llm() -> BaseChatModel:
             return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
             
         logging.info("Using DeepSeek LLM API v3")
-        return ChatDeepSeekAPI(
+        return ChatDeepSeek(
             api_key=DEEPSEEK_API_KEY,
             model="deepseek-chat",  # 使用 DeepSeek Chat 模型
             temperature=0.7,
@@ -109,6 +109,20 @@ agent_executor = AgentExecutor(
 
 # --- Main Invocation Function ---
 
+# 新增：根據 input_content 動態選擇 LLM
+from langchain_openai import ChatOpenAI
+from langchain_deepseek.chat_models import ChatDeepSeek
+
+def get_llm_dynamic(input_content: list) -> BaseChatModel:
+    has_image = any(item.get("type") == "image_url" for item in input_content)
+    has_audio = any(item.get("type") == "audio_url" or item.get("type") == "audio_base64" for item in input_content)
+    if has_image or has_audio:
+        # 圖片或音訊用 gpt-4o
+        return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
+    else:
+        # 純文字預設用 deepseek
+        return ChatDeepSeek(api_key=DEEPSEEK_API_KEY, model="deepseek-chat", temperature=0.7, streaming=True)
+
 async def invoke_agent(
     user_id: str,
     text_message: Optional[str] = None,
@@ -125,35 +139,32 @@ async def invoke_agent(
     Returns:
         A dictionary containing the agent's reply.
     """
-    # Note: user_id is not directly used here yet, but is kept for future enhancements
-    # (e.g., loading user-specific memory based on user_id)
-
     input_content: List[Dict[str, Any]] = []
 
     # Add text to input
-    # If there's an image but no text, add a default prompt.
     if image_base64 and not text_message:
         input_content.append({"type": "text", "text": "請根據這張圖片提供你的分析或見解。"})
     elif text_message:
         input_content.append({"type": "text", "text": text_message})
-
     # Add image to input
     if image_base64:
-        input_content.append(
-            {
-                "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
-            }
-        )
-
+        input_content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
+        })
     if not input_content:
         return {"reply": "請提供一些訊息讓我處理。"}
 
-    # The 'input' key for the agent executor now takes a list of content blocks
-    response = await agent_executor.ainvoke(
-        {
-            "input": input_content,
-        }
+    # 動態選擇 LLM 並建立 agent_executor
+    llm_dynamic = get_llm_dynamic(input_content)
+    agent = create_openai_tools_agent(llm_dynamic, tools, prompt)
+    agent_executor = AgentExecutor(
+        agent=agent,
+        tools=tools,
+        memory=memory,
+        verbose=True,
+        handle_parsing_errors=True,
     )
-
+    response = await agent_executor.ainvoke({"input": input_content})
     return {"reply": response.get("output", "抱歉，我現在遇到一點問題，暫時無法回應。")}
+

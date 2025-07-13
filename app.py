@@ -16,7 +16,7 @@ from linebot.v3.exceptions import InvalidSignatureError
 from linebot.v3.messaging import (
     Configuration,          # LINE API 設定
     ApiClient,              # LINE API 客戶端
-    MessagingApi,           # LINE 訊息 API
+    AsyncMessagingApi,      # LINE 非同步訊息 API
     ReplyMessageRequest,    # 回覆訊息請求
     TextMessage,            # 文字訊息類型
     ImageMessage,           # 圖片訊息類型
@@ -97,6 +97,7 @@ async def shutdown_event():
     logging.info("Shutting down FastAPI server")
     # 釋放資源
 
+from agents.tools import HOROSCOPE_SIGNS
 # 讀取必要環境變數
 LINE_CHANNEL_ACCESS_TOKEN = os.getenv("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_CHANNEL_SECRET = os.getenv("LINE_CHANNEL_SECRET")
@@ -108,6 +109,8 @@ if not (LINE_CHANNEL_ACCESS_TOKEN and LINE_CHANNEL_SECRET and OPENAI_API_KEY):
 
 # 初始化 LINE SDK
 configuration = Configuration(access_token=LINE_CHANNEL_ACCESS_TOKEN)
+api_client = ApiClient(configuration)
+line_bot_api = AsyncMessagingApi(api_client)
 # handler = WebhookHandler(LINE_CHANNEL_SECRET) # WebhookHandler instance no longer used for dispatching
 # WebhookParser will be instantiated in the callback
 
@@ -251,7 +254,7 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
             if isinstance(event, MessageEvent):
                 # Create API client for message handlers
                 with ApiClient(configuration) as api_client:
-                    line_bot_api = MessagingApi(api_client)
+                    line_bot_api = AsyncMessagingApi(api_client)
                     if isinstance(event.message, TextMessageContent):
                         background_tasks.add_task(handle_text_message, event, line_bot_api)
                     elif isinstance(event.message, ImageMessageContent):
@@ -280,7 +283,7 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
 # ====================================================
 
 
-async def handle_text_message(event: MessageEvent, line_bot_api: MessagingApi):
+async def handle_text_message(event: MessageEvent, line_bot_api: AsyncMessagingApi):
     user_id = event.source.user_id
     text = event.message.text
     logging.info(f"Received text message from {user_id}: {text}")
@@ -405,14 +408,14 @@ async def handle_text_message(event: MessageEvent, line_bot_api: MessagingApi):
 # ====================================================
 
 
-async def handle_image_message(event: MessageEvent, line_bot_api: MessagingApi):
+async def handle_image_message(event: MessageEvent, line_bot_api: AsyncMessagingApi):
     user_id = event.source.user_id
     message_id = event.message.id
     logging.info(f"Received image message from {user_id}, message_id: {message_id}")
 
     try:
-        message_content = line_bot_api.get_message_content(message_id)
-        image_bytes = message_content.content
+        content_response = await line_bot_api.get_message_content(message_id)
+        image_bytes = content_response.data  # v3: 取 bytes
         image_base64 = base64.b64encode(image_bytes).decode('utf-8')
         
         response_data = await invoke_agent(user_id=user_id, image_base64=image_base64)
@@ -435,14 +438,14 @@ async def handle_image_message(event: MessageEvent, line_bot_api: MessagingApi):
 
 
 
-async def handle_audio_message(event: MessageEvent, line_bot_api: MessagingApi):
+async def handle_audio_message(event: MessageEvent, line_bot_api: AsyncMessagingApi):
     user_id = event.source.user_id
     message_id = event.message.id
     logging.info(f"Received audio message from {user_id}, message_id: {message_id}")
 
     try:
-        message_content = line_bot_api.get_message_content(message_id)
-        audio_bytes = message_content.content
+        content_response = await line_bot_api.get_message_content(message_id)
+        audio_bytes = content_response.data  # v3: 取 bytes
 
         async with aiofiles.open("temp_audio.m4a", "wb") as f:
             await f.write(audio_bytes)

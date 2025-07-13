@@ -31,15 +31,16 @@ else
     echo -e "${GREEN}✓ LIFF 前端依賴已存在${NC}"
 fi
 
-# 創建日誌資料夾
+# 創建日誌資料夾與檔案（在根目錄）
 mkdir -p logs
+: > logs/frontend.log
+: > logs/frontend.pid
 
-# 啟動前端 LIFF 應用
+# 啟動前端 LIFF 應用（保持在根目錄）
 echo -e "\n${GREEN}2. 啟動前端服務...${NC}"
 echo -e "${BLUE}啟動 LIFF 前端應用...${NC}"
-cd liff && npm run dev > ../logs/frontend.log 2>&1 &
+npm --prefix liff run dev > logs/frontend.log 2>&1 &
 FRONTEND_PID=$!
-cd ..
 echo $FRONTEND_PID > logs/frontend.pid
 echo -e "${GREEN}✓ 前端應用已啟動 (PID: $FRONTEND_PID)${NC}"
 

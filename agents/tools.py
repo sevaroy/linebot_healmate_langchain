@@ -9,6 +9,7 @@ import os
 from typing import Dict, Any, Optional, List
 
 from langchain.tools import Tool
+import httpx
 from langchain_community.embeddings import OllamaEmbeddings
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -260,6 +261,29 @@ random_tarot_reading_tool = Tool(
 
 
 # --- Horoscope Tool ---
+
+# --- Knowledge Base Tool (Wikipedia) ---
+async def _run_knowledge_base_tool(query: str) -> str:
+    """查詢維基百科摘要，回傳簡短解釋。"""
+    try:
+        url = f"https://zh.wikipedia.org/api/rest_v1/page/summary/{query.strip()}"
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                data = resp.json()
+                return data.get("extract", "查無相關知識。")
+            else:
+                return "查無相關知識。"
+    except Exception as e:
+        return f"查詢知識時發生錯誤: {e}"
+
+knowledge_base_tool = Tool(
+    name="KnowledgeBaseTool",
+    description="""當用戶詢問百科、知識、定義、歷史、地理等一般知識問題時使用。會查詢維基百科摘要，回傳簡短解釋。輸入應為條目名稱（如：塔羅牌、認知行為療法）。""",
+    func=_run_knowledge_base_tool,
+    coroutine=_run_knowledge_base_tool,
+)
+
 
 import httpx
 import re
