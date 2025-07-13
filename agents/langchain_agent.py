@@ -9,22 +9,52 @@ to create a flexible and powerful conversational experience.
 """
 
 import os
+import logging
 from typing import Dict, Any, Optional, List
 
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.language_models.llms import BaseLLM
 from langchain.memory import ConversationBufferWindowMemory
 
-from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool
+# 添加 DeepSeek LLM 支援
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_community.chat_models import ChatDeepSeek
+
+from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool
 
 # --- Agent Initialization ---
 
 # 1. Define the tools the agent can use
-tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool]
+tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool]
 
-# 2. Define the Language Model
-llm = ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=os.getenv("OPENAI_API_KEY"))
+# 2. 獲取環境變數
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+
+# 3. 根據提供商選擇語言模型
+def get_llm() -> BaseChatModel:
+    """根據環境變數配置選擇 LLM 提供商"""
+    if LLM_PROVIDER == "deepseek":
+        if not DEEPSEEK_API_KEY:
+            logging.warning("DeepSeek API Key not provided. Falling back to OpenAI.")
+            return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
+            
+        logging.info("Using DeepSeek LLM API v3")
+        return ChatDeepSeekAPI(
+            api_key=DEEPSEEK_API_KEY,
+            model="deepseek-chat",  # 使用 DeepSeek Chat 模型
+            temperature=0.7,
+            streaming=True
+        )
+    else:  # default: openai
+        logging.info("Using OpenAI API")
+        return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
+
+# 初始化 LLM
+llm = get_llm()
 
 # 3. Define the System Prompt
 # This prompt is crucial for the agent's behavior. It tells the LLM how to act.
@@ -35,7 +65,9 @@ AGENT_SYSTEM_PROMPT = """你是一個名為「HealMate」的AI助理，是一個
 
 你可以使用以下工具來幫助你：
 - **StrategyAdvisor**: 當用戶需要具體建議或行動步驟時使用。
-- **TarotReader**: 當用戶想進行占卜或尋求神秘學指引時使用。
+- **TarotReader**: 當用戶想針對「特定問題」進行占卜，尋找與問題最相關的牌卡時使用。它會從牌庫中檢索最匹配的牌。
+- **RandomTarotReader**: 當用戶想要「隨機抽牌」、算「每日運勢」或尋求一個隨機指引時使用。它會模擬真實的抽牌過程。
+- **HoroscopeProvider**: 當用戶想要查詢特定星座的今日運勢時使用。如果用戶提到「白羊座」、「金牛座」等星座名稱並想了解運勢，就用這個工具。
 - **EmotionAnalyzer**: 當你想更深入了解用戶的情緒狀態時，可以在內部使用此工具來輔助你做決策。
 
 你的行為準則：
@@ -124,11 +156,4 @@ async def invoke_agent(
         }
     )
 
-    return {"reply": response.get("output")}
-    # like loading user-specific memory or profiles.
-    
-    response = await agent_executor.ainvoke({"input": message})
-    
-    return {
-        "reply": response.get("output", "抱歉，我現在遇到一點問題，暫時無法回應。")
-    }
+    return {"reply": response.get("output", "抱歉，我現在遇到一點問題，暫時無法回應。")}

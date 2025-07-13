@@ -183,3 +183,145 @@ strategy_tool = Tool(
     func=_run_strategy_tool,  # For sync compatibility if needed
     coroutine=_run_strategy_tool, # For async execution
 )
+
+
+# --- New Random Tarot Reading Tool ---
+
+import random
+from data.tarot_data import TAROT_CARDS
+
+RANDOM_TAROT_SYSTEM_PROMPT = """你是一位專業的塔羅牌占卜師，你的任務是為用戶解讀隨機抽到的塔羅牌。
+請根據用戶的問題以及抽到的牌（包含其正逆位），提供一段溫暖、有啟發性且具體的解讀。
+你的回應應該包含：
+1. 清晰地告訴用戶他們抽到了哪張牌，以及是正位還是逆位。
+2. 解釋這張牌在這個位置的牌義。
+3. 結合用戶的問題，給出一個整體的分析和建議。
+4. 使用溫和、鼓勵的語氣，給予用戶正向的引導。
+"""
+
+async def _run_random_tarot_tool(query: str) -> str:
+    """
+    Performs a random tarot card draw for the user and provides an interpretation.
+    This tool simulates a real tarot reading by randomly selecting a card and its orientation.
+    """
+    try:
+        print("[Random Tarot Tool] 步驟 1: 開始隨機抽牌...")
+        
+        # Randomly select one card from the list
+        card = random.choice(TAROT_CARDS)
+        
+        # Randomly determine the orientation (upright or reversed)
+        orientation = random.choice(['upright', 'reversed'])
+        
+        card_name = card['name']
+        
+        if orientation == 'upright':
+            orientation_text = "正位"
+            meaning = card['meaning_up']
+        else:
+            orientation_text = "逆位"
+            meaning = card['meaning_rev']
+
+        print(f"[Random Tarot Tool] 步驟 2: 抽牌完成。抽到的是 {card_name} ({orientation_text})。")
+
+        prompt_to_llm = f"""用戶問題：{query}
+
+我為你抽到的牌是：**{card_name} ({orientation_text})**
+
+牌義：{meaning}
+
+請基於以上資訊，為用戶提供一次完整、有深度的塔羅牌解讀。"""
+        
+        print("[Random Tarot Tool] 步驟 3: 正在呼叫 LLM 進行解讀...")
+        response = await aclient.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": RANDOM_TAROT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt_to_llm},
+            ],
+            temperature=0.7,
+            max_tokens=800,
+        )
+        print("[Random Tarot Tool] 步驟 4: LLM 解讀完成。")
+        return response.choices[0].message.content.strip()
+
+    except Exception as e:
+        print(f"[Random Tarot Tool] 執行時發生錯誤: {e}")
+        return f"Error in Random Tarot Tool: {e}"
+
+random_tarot_reading_tool = Tool(
+    name="RandomTarotReader",
+    description="""當用戶想要進行一次傳統的隨機抽牌占卜時使用。適用於「幫我抽一張牌」、「算一下今天的運勢」、「隨機給我一些指引」等沒有指定要尋找特定答案的請求。
+    這個工具會模擬真實的抽牌過程，隨機選擇一張塔羅牌及其正逆位，並提供解讀。
+    輸入應該是描述用戶想問的問題的句子。""",
+    func=_run_random_tarot_tool,
+    coroutine=_run_random_tarot_tool,
+)
+
+
+# --- Horoscope Tool ---
+
+import httpx
+import re
+
+HOROSCOPE_SIGNS = {
+    "白羊座": "Aries", "金牛座": "Taurus", "雙子座": "Gemini",
+    "巨蟹座": "Cancer", "獅子座": "Leo", "處女座": "Virgo",
+    "天秤座": "Libra", "天蠍座": "Scorpio", "射手座": "Sagittarius",
+    "摩羯座": "Capricorn", "水瓶座": "Aquarius", "雙魚座": "Pisces",
+    "aries": "Aries", "taurus": "Taurus", "gemini": "Gemini",
+    "cancer": "Cancer", "leo": "Leo", "virgo": "Virgo",
+    "libra": "Libra", "scorpio": "Scorpio", "sagittarius": "Sagittarius",
+    "capricorn": "Capricorn", "aquarius": "Aquarius", "pisces": "Pisces"
+}
+
+async def _run_horoscope_tool(query: str) -> str:
+    """Fetches the daily horoscope for a given zodiac sign."""
+    print(f"[Horoscope Tool] 接收到查詢: {query}")
+    sign_name_ch = None
+    sign_name_en = None
+
+    # Find which zodiac sign is mentioned in the query
+    for sign_ch, sign_en in HOROSCOPE_SIGNS.items():
+        if re.search(sign_ch, query, re.IGNORECASE):
+            sign_name_ch = list(HOROSCOPE_SIGNS.keys())[list(HOROSCOPE_SIGNS.values()).index(sign_en)]
+            sign_name_en = sign_en
+            break
+
+    if not sign_name_en:
+        return "抱歉，請告訴我您想查詢哪個星座的運勢？例如：『獅子座今天運勢如何？』"
+
+    print(f"[Horoscope Tool] 辨識到星座: {sign_name_ch} ({sign_name_en})")
+    api_url = f"https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily?sign={sign_name_en}&day=TODAY"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            print(f"[Horoscope Tool] 正在呼叫 API: {api_url}")
+            response = await client.get(api_url, timeout=10.0)
+            response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+            data = response.json()
+            print("[Horoscope Tool] API 呼叫成功，正在整理資料...")
+
+            horoscope_data = data.get('data', {})
+            prediction = horoscope_data.get('prediction', '暫無預測')
+
+            formatted_response = f"以下是 {sign_name_ch} 今天的運勢分析：\n\n{prediction}"
+            return formatted_response
+
+    except httpx.RequestError as e:
+        print(f"[Horoscope Tool] API 請求錯誤: {e}")
+        return f"抱歉，查詢星座運勢時網路發生問題，請稍後再試。"
+    except Exception as e:
+        print(f"[Horoscope Tool] 發生未知錯誤: {e}")
+        return f"抱歉，處理您的星座運勢請求時發生了未知的錯誤。"
+
+horoscope_tool = Tool(
+    name="HoroscopeProvider",
+    description="""當用戶想要查詢特定星座的今日運勢時使用。適用於包含「星座」、「運勢」、「白羊座」、「獅子座」等關鍵詞的請求。
+    這個工具會根據用戶提到的星座，提供今天的運勢分析。
+    輸入應該是包含星座名稱的句子。""",
+    func=_run_horoscope_tool,
+    coroutine=_run_horoscope_tool,
+)
+
+

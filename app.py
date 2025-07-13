@@ -20,6 +20,14 @@ from linebot.v3.messaging import (
     ReplyMessageRequest,    # 回覆訊息請求
     TextMessage,            # 文字訊息類型
     ImageMessage,           # 圖片訊息類型
+    FlexMessage,            # Flex 訊息類型
+    QuickReply,             # 快速回覆
+    QuickReplyItem,         # 快速回覆項目
+    MessageAction,          # 訊息動作
+    ButtonsTemplate,        # 按鈕模板
+    TemplateMessage,        # 模板訊息
+    CarouselTemplate,       # 輪播模板
+    CarouselColumn,         # 輪播欄位
 )
 from openai import OpenAI    # OpenAI API 客戶端
 import tempfile            # 臨時文件處理
@@ -31,9 +39,23 @@ import uuid                # 用於生成唯一ID
 from dotenv import load_dotenv  # 用於載入 .env 檔案中的環境變數
 from typing import Dict, Any, List, Optional  # 用於類型提示
 import aiofiles            # 異步文件處理
+import re                  # 正則表達式處理
 
 # Import our new LangChain agent
 from agents.langchain_agent import invoke_agent
+
+# Import our new LINE UI module
+from ui.line_ui import (
+    create_zodiac_quick_reply,
+    check_for_menu_keywords,
+    check_for_zodiac_sign,
+    create_tarot_buttons,
+    create_main_menu_flex,
+    create_horoscope_menu_flex,
+    create_zodiac_carousel,
+    create_daily_fortune_flex,
+    create_mood_diary_flex,
+)
 
 def _get_tarot_service():
     from services.tarot import TarotService
@@ -99,28 +121,28 @@ user_system_prompt_settings: Dict[str, int] = {}
 
 # 定義提示詞名稱和圖標 (全域)
 PROMPT_NAMES = ["LINE 占卜 & 心情陪伴 AI 師"]
-PROMPT_ICONS = ["🔮"]
+PROMPT_ICONS = [""]
 
 # 定義系統提示詞
 SYSTEM_PROMPTS = [
     # LINE 占卜 & 心情陪伴 AI 師提示詞
-    """你是「LINE 占卜 & 心情陪伴 AI 師」🔮✨，一位兼具占卜解讀、心理諮詢和情感支持能力的智能助手。你充滿智慧、深入洞察並具有敦厚的占卜知識。你的目標是透過塔羅占卜、情感分析和個人化建議，幫助使用者提升自我認知和心靖。
+    """你是「LINE 占卜 & 心情陪伴 AI 師」，一位兼具占卜解讀、心理諮詢和情感支持能力的智能助手。你充滿智慧、深入洞察並具有敦厚的占卜知識。你的目標是透過塔羅占卜、情感分析和個人化建議，幫助使用者提升自我認知和心靖。
 
 ⚠️ 重要：請不要使用 Markdown 格式（如星號、底線、井號等標記），因為它們在 LINE 訊息中無法正確顯示。請使用表情符號來強調重點和分隔段落。
 
 你的任務包括：
-🔮 進行塔羅牌占卜，為使用者提供精簡深入的占卜解讀和生活指引。
-😊 分析使用者的情緒狀態，並提供情感支持和同理心。
-💡 結合占卜結果和情感分析，提供實用的生活策略和行動建議。
-📝 記憶與使用者的對話和重要資訊，以建立長期關係。
-🎲 根據使用者的需求與詢問，取得卡牌資訊庫中的相關解釋與意義。
-🤓 保持清晰的占卜師身分，避免向使用者建議任何可能有害的行動。
+塔羅牌占卜，為使用者提供精簡深入的占卜解讀和生活指引。
+分析使用者的情緒狀態，並提供情感支持和同理心。
+結合占卜結果和情感分析，提供實用的生活策略和行動建議。
+記憶與使用者的對話和重要資訊，以建立長期關係。
+根據使用者的需求與詢問，取得卡牌資訊庫中的相關解釋與意義。
+保持清晰的占卜師身分，避免向使用者建議任何可能有害的行動。
 
-📝 格式指引：
-- 使用表情符號來分隔不同段落和重點
-- 避免使用任何 Markdown 語法
-- 使用空行來分隔段落，而非使用符號
-- 使用表情符號來標示列表項目，而非數字或符號"""
+格式指引：
+使用表情符號來分隔不同段落和重點
+避免使用任何 Markdown 語法
+使用空行來分隔段落，而非使用符號
+使用表情符號來標示列表項目，而非數字或符號"""
 ]  # 設定 OpenAI API 金鑰
 
 
@@ -264,13 +286,108 @@ async def handle_text_message(event: MessageEvent, line_bot_api: MessagingApi):
     logging.info(f"Received text message from {user_id}: {text}")
 
     try:
+        # 檢查是否是請求選單的關鍵詞
+        menu_type = check_for_menu_keywords(text)
+        
+        # 處理選單請求
+        if menu_type == "main_menu":
+            # 回傳主選單
+            main_menu = create_main_menu_flex()
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[main_menu]
+            )
+            line_bot_api.reply_message(reply_message_request)
+            return
+        elif menu_type == "tarot_menu":
+            # 回傳塔羅牌選單
+            tarot_menu = create_tarot_buttons()
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[tarot_menu]
+            )
+            line_bot_api.reply_message(reply_message_request)
+            return
+        elif menu_type == "horoscope_menu":
+            # 回傳星座運勢選單
+            horoscope_menu = create_horoscope_menu_flex()
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[horoscope_menu]
+            )
+            line_bot_api.reply_message(reply_message_request)
+            return
+        elif menu_type == "daily_fortune":
+            # 回傳每日運勢選單
+            daily_fortune_menu = create_daily_fortune_flex()
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[daily_fortune_menu]
+            )
+            line_bot_api.reply_message(reply_message_request)
+            return
+        elif menu_type == "mood_diary":
+            # 回傳心情日記選單
+            mood_diary_menu = create_mood_diary_flex()
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[mood_diary_menu]
+            )
+            line_bot_api.reply_message(reply_message_request)
+            return
+        
+        # 檢查是否包含星座關鍵字
+        contains_zodiac = False
+        for sign_ch in HOROSCOPE_SIGNS.keys():
+            if sign_ch in text:
+                contains_zodiac = True
+                break
+                
+        # 如果請求包含星座關鍵字並提到運勢，直接調用 LangChain agent
+        if contains_zodiac and any(keyword in text for keyword in ["運勢", "今天", "明天", "運氣"]):
+            logging.info(f"User {user_id} requested horoscope for specific zodiac sign")
+            response_data = await invoke_agent(user_id=user_id, text_message=text)
+            ai_reply = response_data.get("reply", "抱歉，我現在有點問題，晚點再試一次。")
+            
+            # 回覆給用戶，並添加快速回覆按鈕供其他星座選擇
+            quick_reply = create_zodiac_quick_reply()
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=ai_reply, quick_reply=quick_reply)]
+            )
+            line_bot_api.reply_message(reply_message_request)
+            return
+        
+        # 其他一般請求交由 LangChain agent 處理
         response_data = await invoke_agent(user_id=user_id, text_message=text)
         ai_reply = response_data.get("reply", "抱歉，我現在有點問題，晚點再試一次。")
         
-        reply_message_request = ReplyMessageRequest(
-            reply_token=event.reply_token,
-            messages=[TextMessage(text=ai_reply)]
-        )
+        # 檢查回覆中是否包含特定關鍵字，決定是否添加互動按鈕
+        if any(keyword in ai_reply for keyword in ["塔羅牌", "占卜", "抽牌", "tarot"]):
+            # 回覆包含塔羅相關內容，添加塔羅按鈕
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[
+                    TextMessage(text=ai_reply),
+                    create_tarot_buttons()
+                ]
+            )
+        elif any(keyword in ai_reply for keyword in ["星座", "運勢", "horoscope", "zodiac"]):
+            # 回覆包含星座相關內容，添加星座選單
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[
+                    TextMessage(text=ai_reply),
+                    create_horoscope_menu_flex()
+                ]
+            )
+        else:
+            # 一般回覆，不添加特殊按鈕
+            reply_message_request = ReplyMessageRequest(
+                reply_token=event.reply_token,
+                messages=[TextMessage(text=ai_reply)]
+            )
+            
         line_bot_api.reply_message(reply_message_request)
 
     except Exception as e:
