@@ -89,23 +89,22 @@ prompt = ChatPromptTemplate.from_messages(
 
 # 4. Define the Memory
 # We use a windowed buffer to keep the last K interactions in memory.
-memory = ConversationBufferWindowMemory(
-    k=5, memory_key="chat_history", return_messages=True
-)
+# Global dictionary to store memory for each user
+user_memories: Dict[str, ConversationBufferWindowMemory] = {}
 
 # 5. Create the Agent
 # This binds the LLM, prompt, and tools together.
-agent = create_openai_tools_agent(llm, tools, prompt)
+# agent = create_openai_tools_agent(llm, tools, prompt) # This will be created dynamically per user
 
 # 6. Create the Agent Executor
 # This is the runtime for the agent. It adds the memory and handles the execution loop.
-agent_executor = AgentExecutor(
-    agent=agent,
-    tools=tools,
-    memory=memory,
-    verbose=True,  # Set to True for debugging to see the agent's thoughts
-    handle_parsing_errors=True, # Gracefully handle cases where the LLM output is not perfect
-)
+# agent_executor = AgentExecutor( # This will be created dynamically per user
+#     agent=agent,
+#     tools=tools,
+#     memory=memory,
+#     verbose=True,  # Set to True for debugging to see the agent's thoughts
+#     handle_parsing_errors=True, # Gracefully handle cases where the LLM output is not perfect
+# )
 
 # --- Main Invocation Function ---
 
@@ -123,6 +122,8 @@ def get_llm_dynamic(input_content: list) -> BaseChatModel:
         # 純文字預設用 deepseek
         return ChatDeepSeek(api_key=DEEPSEEK_API_KEY, model="deepseek-chat", temperature=0.7, streaming=True)
 
+from langchain_core.messages import HumanMessage
+
 async def invoke_agent(
     user_id: str,
     text_message: Optional[str] = None,
@@ -139,32 +140,50 @@ async def invoke_agent(
     Returns:
         A dictionary containing the agent's reply.
     """
-    input_content: List[Dict[str, Any]] = []
+    
+    # Retrieve or create memory for the user
+    if user_id not in user_memories:
+        user_memories[user_id] = ConversationBufferWindowMemory(
+            k=5, memory_key="chat_history", return_messages=True
+        )
+    memory = user_memories[user_id]
 
-    # Add text to input
-    if image_base64 and not text_message:
-        input_content.append({"type": "text", "text": "請根據這張圖片提供你的分析或見解。"})
-    elif text_message:
-        input_content.append({"type": "text", "text": text_message})
-    # Add image to input
+    # Construct multimodal content for HumanMessage
+    human_message_content: List[Dict[str, Any]] = []
+    
+    if text_message:
+        human_message_content.append({"type": "text", "text": text_message})
+    elif image_base64: # If only image is provided, add a default text prompt
+        human_message_content.append({"type": "text", "text": "請根據這張圖片提供你的分析或見解。"})
+
     if image_base64:
-        input_content.append({
+        human_message_content.append({
             "type": "image_url",
             "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
         })
-    if not input_content:
+
+    if not human_message_content:
         return {"reply": "請提供一些訊息讓我處理。"}
 
+    # Create a HumanMessage object
+    human_message = HumanMessage(content=human_message_content)
+
+    # Add the human message to memory before invoking the agent
+    # This ensures the multimodal message is part of the chat history
+    memory.chat_memory.add_message(human_message)
+
     # 動態選擇 LLM 並建立 agent_executor
-    llm_dynamic = get_llm_dynamic(input_content)
+    llm_dynamic = get_llm_dynamic(human_message_content) # Use human_message_content to determine LLM
     agent = create_openai_tools_agent(llm_dynamic, tools, prompt)
     agent_executor = AgentExecutor(
         agent=agent,
         tools=tools,
-        memory=memory,
+        memory=memory, # Use the retrieved/created memory
         verbose=True,
         handle_parsing_errors=True,
     )
-    response = await agent_executor.ainvoke({"input": input_content})
+    
+    # Pass the text_message as input to the agent_executor, as the actual multimodal content is now in memory
+    response = await agent_executor.ainvoke({"input": text_message if text_message else ""})
     return {"reply": response.get("output", "抱歉，我現在遇到一點問題，暫時無法回應。")}
 
