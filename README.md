@@ -1,83 +1,91 @@
-# 🤖 HealMate AI 陪伴師
+# 🤖 HealMate AI 陪伴師：基於 LLM 的個人化情緒支持平台
 
-## ✨ 專案簡介
+## 🌟 專案概述
 
-HealMate 是一個基於 LINE 平台的 AI 陪伴師，旨在透過塔羅占卜、情緒分析和個人化建議，提供使用者溫暖、智慧與支持。本專案採用現代化的技術棧，並經過近期的大幅優化，以提供更穩定、高效且具備記憶能力的互動體驗。
+HealMate 是一個創新的 LINE 平台 AI 陪伴師，旨在透過先進的語言模型 (LLM) 和多模態互動，為用戶提供個人化的情緒支持、塔羅占卜解讀及生活策略建議。本專案不僅聚焦於功能實現，更著重於**穩健的架構設計、高效的開發流程與持續優化的實踐**，旨在打造一個可擴展、易維護且具備深度情緒價值的 AI 應用。
 
-## 🚀 核心功能
+## ✨ 核心亮點與技術深度
 
-*   **智慧對話代理**：整合 LangChain 與大型語言模型 (LLM)，實現多輪對話與意圖理解。
-*   **塔羅牌占卜**：提供基於 RAG (Retrieval-Augmented Generation) 的精準塔羅牌解讀，以及隨機抽牌功能。
-*   **情緒分析**：分析用戶訊息中的情緒，提供更具同理心的回應。
-*   **個人化心情日記**：記錄用戶心情，AI 可根據歷史心情提供更貼心的建議。
-*   **星座運勢查詢**：提供每日星座運勢。
-*   **多模態支援**：支援圖片輸入，AI 可結合圖片內容進行分析。
+本專案在設計與實踐中，融入了多項現代軟體工程與 AI 開發的最佳實踐：
 
-## 🛠 技術棧 (更新)
+1.  **模組化與分層架構**：
+    *   採用清晰的 FastAPI (後端 API) + LangChain (AI 代理核心) + LINE LIFF (前端互動介面) 分層架構，確保各模組職責分離，提高可維護性與擴展性。
+    *   數據處理、資料庫操作、Agent 工具等模組獨立設計，便於單元測試與功能迭代。
 
-*   **後端框架**: FastAPI
+2.  **智能對話代理 (LangChain Agent)**：
+    *   **意圖理解與工具調度**：基於 LangChain Agent 框架，實現智能意圖識別與工具自動調用，使 AI 能根據用戶需求靈活響應。
+    *   **對話記憶管理**：為每個用戶實作獨立的 `ConversationBufferWindowMemory`，確保多輪對話的上下文連貫性，提升用戶體驗。
+    *   **個人化與情緒智能**：
+        *   **心情日記整合**：引入 PostgreSQL 資料庫持久化儲存用戶心情數據，並透過專屬 LIFF 介面進行數據收集。
+        *   **情緒脈絡感知**：Agent 內建 `MoodHistoryChecker` 工具，允許其查詢用戶歷史心情，從而提供更具同理心和個人化的建議，將「識別情緒」昇華為「理解情緒」。
+
+3.  **高效數據管線 (RAG)**：
+    *   **塔羅牌 RAG 系統**：利用 Qdrant 向量資料庫實現塔羅牌知識的語義檢索。用戶提問時，Agent 能精準檢索最相關的牌義，並結合 LLM 進行深度解讀，而非簡單的關鍵字匹配。
+    *   **統一數據處理**：將分散的數據抓取、清洗、驗證、嵌入腳本整合為單一、自動化的 `data_pipeline.py`，確保數據處理流程的健壯性與可重現性。
+
+4.  **容器化與開發流程優化**：
+    *   **Docker Compose 統一管理**：所有服務 (後端、前端、資料庫、向量庫、快取) 均透過 Docker Compose 進行容器化管理，實現「一鍵啟動/停止」，極大簡化開發環境配置與部署流程。
+    *   **依賴管理規範化**：Python 依賴採用 `pip-tools` 進行精確管理，確保開發與部署環境的一致性，避免版本衝突。
+    *   **自動化構建**：為前後端服務編寫 `Dockerfile`，實現自動化映像構建，提升部署效率。
+
+## 🛠 技術棧
+
+*   **後端框架**: FastAPI (Python)
 *   **AI 框架**: LangChain
-*   **語言模型**: DeepSeek, GPT-4o (支援多模態)
+*   **語言模型**: DeepSeek (核心 LLM)
 *   **向量資料庫**: Qdrant
-*   **關聯式資料庫**: PostgreSQL (用於心情日記等結構化數據)
-*   **快取/訊息佇列**: Redis (基礎設施，未來可擴展)
+*   **關聯式資料庫**: PostgreSQL
+*   **快取/訊息佇列**: Redis
 *   **前端**: LINE LIFF (React + Vite)
-*   **依賴管理**: `pip-tools` (Python), `npm` (Node.js)
+*   **依賴管理**: `pip-tools`, `npm`
 *   **容器化**: Docker, Docker Compose
 
-## ⚙️ 環境要求
+## 🚀 快速開始
 
-*   Docker 及 Docker Compose
-*   Node.js (用於前端開發，如果只用 Docker 可選)
-*   Python 3.11+
+本專案已全面 Docker 化，提供簡潔高效的啟動體驗。
 
-## 🚀 快速開始 (全新簡化流程)
+1.  **環境準備**：
+    *   安裝 Docker 及 Docker Compose。
+    *   確保已安裝 Python 3.11+ (用於本地腳本執行，非容器內)。
 
-我們已將所有服務的啟動與管理統一至 Docker Compose。現在，你只需要幾個簡單的步驟即可啟動整個專案。
-
-1.  **複製專案**：
+2.  **專案克隆**：
     ```bash
     git clone https://github.com/your-repo/Linebot_healmate_langchain.git
     cd Linebot_healmate_langchain
     ```
 
-2.  **設定環境變數**：
-    複製 `.env.example` 為 `.env`，並填入必要的環境變數，例如 LINE Channel Access Token, LINE Channel Secret, OpenAI API Key 等。
+3.  **環境變數配置**：
+    複製 `.env.example` 為 `.env`，並填入必要的 API Keys 及其他配置。
     ```bash
     cp .env.example .env
-    # 編輯 .env 檔案，填入你的 API Keys 和其他配置
+    # 編輯 .env 檔案，填入 DEEPSEEK_API_KEY, LINE_CHANNEL_SECRET, LINE_CHANNEL_ACCESS_TOKEN, VITE_LIFF_ID 等
     ```
 
-3.  **啟動所有服務 (推薦)**：
-    使用 Docker Compose 啟動後端 API、前端 LIFF 應用、Qdrant、Redis 和 PostgreSQL。
+4.  **啟動所有服務**：
+    此命令將構建 Docker 映像並啟動所有後端、前端、資料庫服務。
     ```bash
-    docker-compose -f infra/docker-compose.yaml up --build -d
+    docker-compose --project-directory . -f infra/docker-compose.yaml up --build -d
     ```
-    *   `--build`: 首次運行或 Dockerfile 有變更時使用，會重新構建映像。
+    *   `--build`: 首次運行或 Dockerfile 有變更時使用，確保映像最新。
     *   `-d`: 在後台運行服務。
 
     服務啟動後，你可以訪問：
-    *   **後端 API**: `http://localhost:8000`
+    *   **後端 API**: `http://localhost:8080`
     *   **前端 LIFF**: `http://localhost:5173`
 
-4.  **停止所有服務**：
-    ```bash
-    docker-compose -f infra/docker-compose.yaml down
-    ```
-
 5.  **初始化塔羅牌數據 (重要)**：
-    首次運行或數據更新時，你需要生成塔羅牌的嵌入向量並上傳到 Qdrant。請確保 Qdrant 服務已運行。
+    首次運行或數據更新時，需生成塔羅牌嵌入向量並上傳至 Qdrant。請確保 Qdrant 服務已運行。
     ```bash
-    # 使用 Ollama (需本地運行 Ollama 服務並下載模型，例如 nomic-embed-text)
-    docker-compose -f infra/docker-compose.yaml exec backend python scripts/data_pipeline.py --embedder ollama --model nomic-embed-text
-
-    # 或使用 OpenAI (需設定 OPENAI_API_KEY)
-    # docker-compose -f infra/docker-compose.yaml exec backend python scripts/data_pipeline.py --embedder openai --model text-embedding-3-small
+    docker-compose --project-directory . -f infra/docker-compose.yaml exec backend python scripts/data_pipeline.py --embedder ollama --model nomic-embed-text
+    # 提示：若需使用其他嵌入模型，請參考 data_pipeline.py 的說明。
     ```
-    *   `docker-compose exec backend`: 在 `backend` 服務容器內執行命令。
-    *   你可以根據需求選擇不同的嵌入模型。
 
-## 📂 專案結構 (更新)
+6.  **停止所有服務**：
+    ```bash
+    docker-compose --project-directory . -f infra/docker-compose.yaml down
+    ```
+
+## 📂 專案結構
 
 ```
 .env                 # 環境變數配置 (從 .env.example 複製並修改)
@@ -93,53 +101,35 @@ Dockerfile.backend   # 後端服務 Dockerfile
 │   ├── database.py        # 資料庫連線與 Session 管理
 │   ├── models.py          # SQLAlchemy 資料模型定義 (如 MoodEntry)
 │   └── crud.py            # 資料庫操作 (Create, Read, Update, Delete)
-├── data/            # 數據文件
-│   ├── tarot_cards_processed.json # 處理後的塔羅牌數據
-│   └── ...
-├── infra/           # 基礎設施配置
-│   └── docker-compose.yaml # Docker Compose 配置 (包含所有服務)
+├── data/            # 數據文件 (如處理後的塔羅牌數據)
+├── infra/           # 基礎設施配置 (Docker Compose)
 ├── liff/            # LINE LIFF 前端應用
 │   ├── src/               # React 原始碼
-│   │   ├── components/    # React 組件 (如 MoodTracker.tsx)
-│   │   └── ...
 │   └── Dockerfile.frontend # 前端服務 Dockerfile
-├── scripts/         # 自動化腳本
-│   └── data_pipeline.py   # 統一的數據處理管線 (抓取、清洗、嵌入)
+├── scripts/         # 自動化腳本 (如統一的數據處理管線)
 └── ui/              # LINE UI 相關工具
 ```
 
-## 📈 優化與更新記錄 (由 Gemini AI 代理完成)
+## 📈 優化與重構歷程 (由 Gemini AI 代理協作完成)
 
-本次更新旨在大幅提升專案的穩定性、可維護性與功能性，解決了多個核心痛點。
+本專案經歷了從原型到產品級的關鍵重構與優化，旨在解決初期存在的技術債務與提升整體品質。主要里程碑包括：
 
-### 1. 依賴管理現代化
-*   **問題**：`requirements.txt` 與 `requirements_working.txt` 混亂，導致環境不一致。
-*   **解決方案**：引入 `pip-tools`。現在僅維護 `requirements.in`，並由 `pip-compile` 自動生成鎖定版本的 `requirements.txt`，確保環境可重現。
+1.  **依賴管理規範化**：從混亂的 `requirements.txt` 轉向 `pip-tools`，實現精確且可重現的 Python 環境管理。
+2.  **服務啟動與部署簡化**：淘汰冗餘的 Shell 腳本，全面採用 Docker Compose 進行服務的統一啟動、停止與構建，大幅提升開發者體驗與部署效率。
+3.  **專案結構清晰化**：清理了前端專案中多餘的嵌套結構與混淆的部署配置，使專案目錄層次更合理。
+4.  **數據管線自動化與整合**：將分散的數據處理腳本整合為單一、可配置的 `data_pipeline.py`，實現數據從抓取到嵌入 Qdrant 的全自動化流程。
+5.  **AI Agent 核心能力增強**：
+    *   **記憶機制修復**：修正 LangChain Agent 的記憶體處理邏輯，確保對話上下文的正確傳遞與管理。
+    *   **個人化心情日記功能**：引入 PostgreSQL 數據庫，實現用戶心情數據的持久化儲存。Agent 透過新增的 `MoodHistoryChecker` 工具，能夠查詢並利用用戶歷史心情，提供更具同理心的個人化回應。
+    *   **情緒分析與策略建議優化**：強化 `EmotionAnalyzer` 的輸出穩定性，並在 `StrategyAdvisor` 中加入安全免責聲明，同時為未來整合更多情緒上下文奠定基礎。
+    *   **LLM 統一**：將核心 LLM 統一為 DeepSeek API，並相應調整了圖片/語音訊息的處理策略。
 
-### 2. 服務啟動與管理簡化
-*   **問題**：多個手動編寫的 `.sh` 腳本用於啟動/停止前後端服務，重複且易錯。
-*   **解決方案**：全面擁抱 Docker Compose。將後端 FastAPI 與前端 LIFF 應用納入 `infra/docker-compose.yaml` 管理，並為其創建專屬 `Dockerfile`。現在，只需 `docker-compose up --build -d` 即可啟動所有服務，`docker-compose down` 即可停止。
-*   **影響**：刪除了 `deploy_local.sh`, `start_backend.sh`, `start_frontend.sh`, `stop_backend.sh`, `stop_frontend.sh`, `stop_local.sh` 等冗餘腳本。
+## 💡 未來展望
 
-### 3. 專案結構清理
-*   **問題**：`liff/liff-app` 存在多餘的嵌套前端專案，且部署配置 (`netlify.toml`, `vercel.json`) 混淆。
-*   **解決方案**：刪除 `liff/liff-app`，並統一前端部署配置，移除 `netlify.toml`。
-
-### 4. 數據管線自動化與統一
-*   **問題**：塔羅牌數據處理流程分散在多個獨立且重複的 Python 腳本中 (`fetch_tarot_sources.py`, `fix_tarot_json.py`, `validate_tarot_json.py`, `prepare_tarot_embeddings*.py`)，手動執行繁瑣且易錯。
-*   **解決方案**：將所有數據處理邏輯整合至單一、可配置的 `scripts/data_pipeline.py`。該腳本支援選擇不同的嵌入模型 (OpenAI/Ollama)，並自動完成數據抓取、清洗、驗證、嵌入及上傳至 Qdrant 的全流程。
-*   **影響**：刪除了所有舊的數據處理腳本。
-
-### 5. AI Agent 記憶與個人化能力增強
-*   **問題**：AI Agent 的對話記憶機制未被正確利用，且缺乏記錄用戶心情的能力，導致無法提供個人化服務。
-*   **解決方案**：
-    *   **修正 Agent 記憶**：修復 `agents/langchain_agent.py` 中 `AgentExecutor` 的記憶體處理邏輯，確保多模態輸入和對話歷史被正確傳遞和管理。
-    *   **引入心情日記功能**：
-        *   新增 PostgreSQL 資料庫整合，用於持久化儲存用戶心情數據。
-        *   在後端 `app.py` 中新增 `/mood` API 端點，接收並儲存用戶心情。
-        *   在 `agents/tools.py` 中新增 `MoodHistoryChecker` 工具，允許 Agent 查詢用戶歷史心情。
-        *   更新 Agent 的系統提示詞，引導其利用心情歷史提供更貼心的回應。
-        *   修改前端 `liff/src/components/MoodTracker.tsx`，使其能將用戶選擇的心情發送至後端 API。
+*   **情緒價值深度挖掘**：引入引導式日記、應對技巧庫、肯定語生成等功能，提供更豐富的情緒支持工具。
+*   **數據分析與視覺化**：增強心情數據的分析能力，並在 LIFF 中提供更直觀的視覺化報告。
+*   **多平台擴展**：探索與其他訊息平台（如 WhatsApp, Telegram）的整合。
+*   **模型迭代與優化**：持續探索更適合情緒陪伴場景的 LLM 模型，並進行提示詞工程的精細化調優。
 
 ## 🤝 貢獻
 
