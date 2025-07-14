@@ -117,16 +117,40 @@ const MoodTracker: React.FC<MoodTrackerProps> = ({ liff, userProfile }) => {
       setError('請選擇一個心情狀態');
       return;
     }
+    if (!userProfile || !userProfile.userId) {
+      setError('無法獲取用戶資訊，請重新登入。');
+      return;
+    }
     
     setIsSubmitting(true);
     setError(null);
     
     try {
-      // 在實際實現中，這裡應該向後端 API 提交心情記錄
-      // 這裡僅用模擬數據作為示例
-      
+      // ** REAL IMPLEMENTATION **
+      // Send mood data to the backend API
+      const response = await fetch('/mood', { // Assuming the backend is on the same host or proxied
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          user_id: userProfile.userId,
+          mood: currentMood,
+          intensity: moodIntensity,
+          note: moodNote,
+          tags: moodTags.length > 0 ? moodTags : null, # Send null if no tags
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save mood to the server.');
+      }
+
+      const result = await response.json();
+
+      // Create a new entry for the local state
       const newMoodEntry: MoodEntry = {
-        id: `mood-new-${Date.now()}`,
+        id: result.entry_id, // Use the ID from the backend
         date: selectedDate,
         mood: currentMood,
         intensity: moodIntensity,
@@ -134,24 +158,22 @@ const MoodTracker: React.FC<MoodTrackerProps> = ({ liff, userProfile }) => {
         tags: moodTags
       };
       
-      // 模擬 API 提交
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 更新本地數據
+      // Update local state
       setMoodEntries(prev => [newMoodEntry, ...prev]);
       setMoodStats(prev => ({
         ...prev,
         [currentMood]: (prev[currentMood] || 0) + 1
       }));
       
-      // 清空表單
+      // Clear the form
       setCurrentMood(null);
       setMoodIntensity(5);
       setMoodNote('');
       setMoodTags([]);
       
-      // 顯示成功提示
+      // Show success message
       alert('心情記錄已保存！');
+
     } catch (err) {
       setError('保存心情記錄失敗，請稍後再試。');
       console.error('Error submitting mood:', err);

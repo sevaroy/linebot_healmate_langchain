@@ -1,9 +1,0 @@
-[build]
-  command = "npm run build"
-  publish = "dist"
-
-# 處理 SPA 路由的重定向規則
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

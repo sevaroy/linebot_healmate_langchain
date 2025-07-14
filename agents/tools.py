@@ -6,7 +6,9 @@ Each tool is self-contained and has a clear description, enabling the LLM to dec
 """
 
 import os
+import logging
 from typing import Dict, Any, Optional, List
+from pydantic import BaseModel, Field
 
 from langchain.tools import Tool
 import httpx
@@ -17,7 +19,7 @@ from qdrant_client import QdrantClient, models
 
 # Load environment variables and initialize clients
 load_dotenv()
-aclient = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+aclient = AsyncOpenAI(api_key=os.getenv("DEEPSEEK_API_KEY"), base_url="https://api.deepseek.com/v1")
 
 # --- RAG Setup for Tarot ---
 
@@ -80,7 +82,7 @@ async def _run_tarot_tool(query: str) -> str:
         print("[Tarot Tool] 步驟 5: 上下文已準備好，正在呼叫 LLM...")
 
         response = await aclient.chat.completions.create(
-            model="gpt-4o",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": TAROT_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt_to_llm},
@@ -107,6 +109,11 @@ tarot_reading_tool = Tool(
 
 # --- Emotion Analysis Tool ---
 
+class EmotionAnalysisResult(BaseModel):
+    emotion: str = Field(..., description="用戶最主要的情緒（例如：焦慮、開心、沮喪、憤怒、困惑等）")
+    intensity: int = Field(..., ge=1, le=10, description="情緒強度，範圍從 1 到 10")
+    reason: str = Field(..., description="簡要說明判斷該情緒的理由")
+
 EMOTION_SYSTEM_PROMPT = """你是一位專業的心理學家，專長是從文字中分析情緒。
 你的任務是分析用戶的訊息，並以 JSON 格式回傳你的分析結果。
 JSON 應包含以下三個欄位：
@@ -120,7 +127,7 @@ async def _run_emotion_tool(query: str) -> str:
     """The core logic for the emotion analysis tool."""
     try:
         response = await aclient.chat.completions.create(
-            model="gpt-4o",
+            model="deepseek-chat", # 使用 DeepSeek 模型
             messages=[
                 {"role": "system", "content": EMOTION_SYSTEM_PROMPT},
                 {"role": "user", "content": query},
@@ -129,7 +136,13 @@ async def _run_emotion_tool(query: str) -> str:
             max_tokens=150,
             response_format={"type": "json_object"},
         )
-        return response.choices[0].message.content.strip()
+        json_output = response.choices[0].message.content.strip()
+        try:
+            parsed_result = EmotionAnalysisResult.parse_raw(json_output)
+            return parsed_result.json() # 返回標準化的 JSON
+        except Exception as e:
+            logging.error(f"Failed to parse emotion analysis JSON: {e}. Raw output: {json_output}")
+            return json.dumps({"error": "無法解析情緒分析結果", "raw_output": json_output})
     except Exception as e:
         return f"Error in Emotion Tool: {e}"
 
@@ -157,13 +170,13 @@ STRATEGY_SYSTEM_PROMPT = """你是一位專業的策略顧問，擅長為用戶�
 - 保持專業但溫暖的語調。
 - 避免使用過於學術或技術性的詞彙。
 - 建議需要具體且可行，而非空洞的勵志語。
-"""
+- **重要提示：你提供的所有建議僅供參考，不能取代專業的醫療、法律、金融或心理諮詢。請避免提供任何可能對用戶造成傷害的建議。**"""
 
 async def _run_strategy_tool(query: str) -> str:
     """The core logic for the strategy tool."""
     try:
         response = await aclient.chat.completions.create(
-            model="gpt-4o",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": STRATEGY_SYSTEM_PROMPT},
                 {"role": "user", "content": query},
@@ -235,7 +248,7 @@ async def _run_random_tarot_tool(query: str) -> str:
         
         print("[Random Tarot Tool] 步驟 3: 正在呼叫 LLM 進行解讀...")
         response = await aclient.chat.completions.create(
-            model="gpt-4o",
+            model="deepseek-chat",
             messages=[
                 {"role": "system", "content": RANDOM_TAROT_SYSTEM_PROMPT},
                 {"role": "user", "content": prompt_to_llm},
@@ -262,7 +275,52 @@ random_tarot_reading_tool = Tool(
 
 # --- Horoscope Tool ---
 
+from core.database import SessionLocal
+from core.crud import get_mood_entries_by_user
+
+
+# --- Mood History Tool ---
+
+async def _run_mood_history_tool(user_id: str, query: str = "") -> str:
+    """Fetches the user's recent mood history from the database and provides a summary."""
+    if not user_id:
+        return "無法查詢心情歷史，因為缺少 user_id。"
+    
+    db = SessionLocal()
+    try:
+        logging.info(f"[Mood History Tool] Fetching mood history summary for user {user_id}...")
+        
+        # Get a summary of recent moods
+        mood_summary = get_mood_summary_by_user(db, user_id=user_id, days=7)
+        
+        # Get detailed recent entries (optional, for more context if needed by LLM)
+        mood_entries = get_mood_entries_by_user(db, user_id=user_id, limit=3) # Get top 3 for detail
+        detailed_entries = ""
+        if mood_entries:
+            detailed_entries = "\n最近的詳細紀錄：\n" + "\n".join(
+                [f"- {entry.timestamp.strftime('%Y-%m-%d %H:%M')}: {entry.mood} (強度: {entry.intensity if entry.intensity else 'N/A'}, 筆記: {entry.note if entry.note else '無'}, 標籤: {entry.tags if entry.tags else '無'})" for entry in mood_entries]
+            )
+
+        response = f"{mood_summary}{detailed_entries}"
+        logging.info(f"[Mood History Tool] Found history for user {user_id}:\n{response}")
+        return response
+        
+    except Exception as e:
+        logging.error(f"[Mood History Tool] Error fetching mood history for user {user_id}: {e}")
+        return "查詢使用者心情歷史時發生錯誤。"
+    finally:
+        db.close()
+
+mood_history_tool = Tool(
+    name="MoodHistoryChecker",
+    description="""查詢特定使用者的最近心情紀錄。在你提供個人化建議或分析前，可以使用此工具來了解使用者的情緒脈絡。這個工具不需要任何輸入。""",
+    func=None, # This tool is async only
+    coroutine=_run_mood_history_tool,
+)
+
+
 # --- Knowledge Base Tool (Wikipedia) ---
+
 async def _run_knowledge_base_tool(query: str) -> str:
     """查詢維基百科摘要，回傳簡短解釋。"""
     try:

@@ -1,0 +1,33 @@
+fastapi
+uvicorn[standard]
+line-bot-sdk
+openai
+python-dotenv
+requests
+pydub
+
+# LangChain & RAG
+langchain
+langchain-openai
+langchain-community
+langchainhub
+qdrant-client
+ollama
+
+# 非同步 HTTP 與檔案處理
+httpx
+aiofiles
+
+# Stripe 付費功能（如需商業化）
+stripe
+
+# 開發/測試工具
+pytest
+pytest-asyncio
+black
+isort
+flake8
+
+# Database
+sqlalchemy
+psycopg2-binary

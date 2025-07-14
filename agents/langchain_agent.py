@@ -22,12 +22,17 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_deepseek.chat_models import ChatDeepSeek
 
-from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool
+from functools import partial
+from langchain.tools import Tool
+
+from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool, _run_mood_history_tool
 
 # --- Agent Initialization ---
 
-# 1. Define the tools the agent can use
-tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool]
+# 1. Define the base tools the agent can use (without user-specific context)
+base_tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool]
+
+# The mood_history_tool will be created dynamically per user request.
 
 # 2. 獲取環境變數
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
@@ -37,21 +42,17 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 # 3. 根據提供商選擇語言模型
 def get_llm() -> BaseChatModel:
     """根據環境變數配置選擇 LLM 提供商"""
-    if LLM_PROVIDER == "deepseek":
-        if not DEEPSEEK_API_KEY:
-            logging.warning("DeepSeek API Key not provided. Falling back to OpenAI.")
-            return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
-            
-        logging.info("Using DeepSeek LLM API v3")
-        return ChatDeepSeek(
-            api_key=DEEPSEEK_API_KEY,
-            model="deepseek-chat",  # 使用 DeepSeek Chat 模型
-            temperature=0.7,
-            streaming=True
-        )
-    else:  # default: openai
-        logging.info("Using OpenAI API")
-        return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
+    if not DEEPSEEK_API_KEY:
+        logging.error("DeepSeek API Key not provided. Cannot initialize DeepSeek LLM.")
+        raise ValueError("DEEPSEEK_API_KEY is required for DeepSeek LLM.")
+        
+    logging.info("Using DeepSeek LLM API v3")
+    return ChatDeepSeek(
+        api_key=DEEPSEEK_API_KEY,
+        model="deepseek-chat",  # 使用 DeepSeek Chat 模型
+        temperature=0.7,
+        streaming=True
+    )
 
 # 初始化 LLM
 llm = get_llm()
@@ -61,7 +62,7 @@ llm = get_llm()
 AGENT_SYSTEM_PROMPT = """你是一個名為「HealMate」的AI助理，是一個充滿同理心、智慧和溫暖的陪伴者。
 你的主要目標是幫助用戶探索他們的感受、找到方向，並提供支持。
 
-**多模態能力**: 你能理解用戶傳送的圖片。當用戶傳送圖片時，請結合圖片內容和文字進行分析和回應。
+**個人化能力**: 你可以記住與使用者的對話。在提供建議前，你可以使用 `MoodHistoryChecker` 工具來查詢使用者的近期心情，以便提供更貼心、更有脈絡的回應。
 
 你可以使用以下工具來幫助你：
 - **StrategyAdvisor**: 當用戶需要具體建議或行動步驟時使用。
@@ -69,13 +70,15 @@ AGENT_SYSTEM_PROMPT = """你是一個名為「HealMate」的AI助理，是一個
 - **RandomTarotReader**: 當用戶想要「隨機抽牌」、算「每日運勢」或尋求一個隨機指引時使用。它會模擬真實的抽牌過程。
 - **HoroscopeProvider**: 當用戶想要查詢特定星座的今日運勢時使用。如果用戶提到「白羊座」、「金牛座」等星座名稱並想了解運勢，就用這個工具。
 - **EmotionAnalyzer**: 當你想更深入了解用戶的情緒狀態時，可以在內部使用此工具來輔助你做決策。
+- **MoodHistoryChecker**: 在與使用者互動一段時間後，或當使用者提到「最近心情不好」等模糊的描述時，使用此工具來查詢他們最近的心情紀錄。這有助於你了解他們的長期情緒狀態。
 
 你的行為準則：
 1.  **優先使用工具**：根據用戶的意圖，優先選擇最合適的工具來回應。不要自己編造答案，除非沒有工具可用。
-2.  **自然地對話**：不要生硬地說「我將使用XX工具」。而是將工具的輸出自然地融入你的對話中。
-3.  **富有同理心**：永遠保持溫暖和理解的語氣。在給予建議或占卜結果之前，先表示你理解用戶的感受。
-4.  **處理閒聊**：如果用戶只是閒聊或問候，不需要使用工具，直接以你「HealMate」的身份自然回應即可。
-5.  **結合多個工具**：如果情況複雜，你可以依序使用多個工具。例如，先用 EmotionAnalyzer 了解情緒，再用 StrategyAdvisor 提供建議。
+2.  **善用歷史紀錄**：在回應前，先考慮使用 `MoodHistoryChecker` 來檢查使用者的心情歷史，讓你的回應更具個人化和同理心。
+3.  **自然地對話**：不要生硬地說「我將使用XX工具」。而是將工具的輸出自然地融入你的對話中。
+4.  **富有同理心**：永遠保持溫暖和理解的語氣。在給予建議或占卜結果之前，先表示你理解用戶的感受。
+5.  **處理閒聊**：如果用戶只是閒聊或問候，不需要使用工具，直接以你「HealMate」的身份自然回應即可。
+6.  **結合多個工具**：如果情況複雜，你可以依序使用多個工具。例如，先用 `MoodHistoryChecker` 了解歷史情緒，再用 `EmotionAnalyzer` 分析當前訊息，最後用 `StrategyAdvisor` 提供建議。
 """
 
 prompt = ChatPromptTemplate.from_messages(
@@ -108,16 +111,6 @@ user_memories: Dict[str, ConversationBufferWindowMemory] = {}
 
 # --- Main Invocation Function ---
 
-# 新增：根據 input_content 動態選擇 LLM
-from langchain_openai import ChatOpenAI
-from langchain_deepseek.chat_models import ChatDeepSeek
-
-def get_llm_dynamic(input_content: list) -> BaseChatModel:
-    # Temporarily force ChatOpenAI for diagnostic purposes
-    return ChatOpenAI(model="gpt-4o", temperature=0.7, api_key=OPENAI_API_KEY)
-
-from langchain_core.messages import HumanMessage
-
 async def invoke_agent(
     user_id: str,
     text_message: Optional[str] = None,
@@ -125,6 +118,7 @@ async def invoke_agent(
 ) -> Dict[str, Any]:
     """
     Invoke the main agent with a user message (text and/or image) and return the response.
+    This function now correctly handles memory and multimodal inputs as expected by LangChain.
 
     Args:
         user_id: The user's unique identifier.
@@ -135,49 +129,64 @@ async def invoke_agent(
         A dictionary containing the agent's reply.
     """
     
-    # Retrieve or create memory for the user
+    # 1. Retrieve or create memory for the user
     if user_id not in user_memories:
         user_memories[user_id] = ConversationBufferWindowMemory(
             k=5, memory_key="chat_history", return_messages=True
         )
     memory = user_memories[user_id]
 
-    # Construct multimodal content for HumanMessage
-    human_message_content: List[Dict[str, Any]] = []
+    # 2. Construct the input for the agent
+    # The input should be a dictionary, where the 'input' key holds the user's message.
+    # For multimodal input, the value is a list of content blocks (text, image).
+    input_content: List[Dict[str, Any]] = []
     
+    # Add text content if it exists.
     if text_message:
-        human_message_content.append({"type": "text", "text": text_message})
-    elif image_base64: # If only image is provided, add a default text prompt
-        human_message_content.append({"type": "text", "text": "請根據這張圖片提供你的分析或見解。"})
+        input_content.append({"type": "text", "text": text_message})
+    # If only an image is provided, add a default prompt.
+    elif image_base64 and not text_message:
+        input_content.append({"type": "text", "text": "請根據這張圖片提供你的分析或見解。"})
 
+    # Add image content if it exists.
     if image_base64:
-        human_message_content.append({
+        input_content.append({
             "type": "image_url",
             "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"},
         })
 
-    if not human_message_content:
+    if not input_content:
         return {"reply": "請提供一些訊息讓我處理。"}
 
-    # Create a HumanMessage object
-    human_message = HumanMessage(content=human_message_content)
+    # 3. Create a user-specific version of the mood history tool
+    mood_history_tool_for_user = Tool(
+        name="MoodHistoryChecker",
+        description="""查詢特定使用者的最近心情紀錄。在你提供個人化建議或分析前，可以使用此工具來了解使用者的情緒脈絡。這個工具不需要任何輸入。""",
+        func=None,
+        coroutine=partial(_run_mood_history_tool, user_id=user_id)
+    )
 
-    # Add the human message to memory before invoking the agent
-    # This ensures the multimodal message is part of the chat history
-    memory.chat_memory.add_message(human_message)
+    # Combine base tools with the user-specific tool
+    tools = base_tools + [mood_history_tool_for_user]
 
-    # 動態選擇 LLM 並建立 agent_executor
-    llm_dynamic = get_llm_dynamic(human_message_content) # Use human_message_content to determine LLM
-    agent = create_openai_tools_agent(llm_dynamic, tools, prompt)
+    # 4. Create the agent and executor for this specific invocation
+    # This ensures that each user gets their own memory-equipped agent instance.
+    agent = create_openai_tools_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(
         agent=agent,
         tools=tools,
-        memory=memory, # Use the retrieved/created memory
+        memory=memory,
         verbose=True,
         handle_parsing_errors=True,
     )
     
-    # Pass the text_message as input to the agent_executor, as the actual multimodal content is now in memory
-    response = await agent_executor.ainvoke({"input": text_message if text_message else ""})
+    # 5. Invoke the agent with the correctly structured multimodal input
+    # The AgentExecutor will handle memory automatically:
+    # - It reads the history from `memory`.
+    # - It adds the current `input` to the conversation.
+    # - It executes the agent.
+    # - It saves the new input and the AI's response back to `memory`.
+    response = await agent_executor.ainvoke({"input": input_content})
+    
     return {"reply": response.get("output", "抱歉，我現在遇到一點問題，暫時無法回應。")}
 
