@@ -11,7 +11,7 @@ load_dotenv()
 # Construct the database URL from environment variables
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    f"postgresql://{os.getenv('POSTGRES_USER', 'healmate')}:{os.getenv('POSTGRES_PASSWORD', 'healmate_pass')}@localhost:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'healmate_db')}"
+    f"postgresql://{os.getenv('POSTGRES_USER', 'healmate')}:{os.getenv('POSTGRES_PASSWORD', 'healmate_pass')}@postgres:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'healmate_db')}"
 )
 
 engine = create_engine(DATABASE_URL)
