@@ -54,6 +54,17 @@ LINE_CHANNEL_ACCESS_TOKEN="your_line_channel_access_token_here"
 4. **檢查 Git 歷史** 是否需要清理
 5. **重新部署** 系統
 
+### 安全事件記錄
+
+**2025-07-20**: 
+- **問題**: GraphRAG 配置文件 (`settings.yaml`) 中包含了 OpenAI API key
+- **影響**: 多個提交中洩露了敏感信息
+- **解決**: 
+  - 修改代碼改用環境變數傳遞 API key
+  - 使用 `git filter-branch` 清理 Git 歷史
+  - 更新 `.gitignore` 防止再次發生
+  - 建立安全檢查清單
+
 ## 聯絡信息
 
 如果發現安全問題，請立即報告給開發團隊。
