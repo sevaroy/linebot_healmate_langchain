@@ -115,3 +115,15 @@ dmypy.json
 
 # macOS
 .DS_Store
+
+# GraphRAG data and configs (contains sensitive information)
+data/microsoft_graphrag/*/settings.yaml
+data/microsoft_graphrag/*/cache/
+data/microsoft_graphrag/*/output/
+data/microsoft_graphrag/*/reporting/
+data/microsoft_graphrag/knowledge_bases.json
+
+# Any files that might contain API keys
+**/settings.yaml
+**/config.yaml
+**/*_config.yaml

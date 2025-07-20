@@ -66,7 +66,7 @@ class MicrosoftGraphRAGService:
         """建立 GraphRAG 配置"""
         config = {
             "llm": {
-                "api_key": self.openai_api_key or self.deepseek_api_key,
+                # 不直接寫入 API key，使用環境變數
                 "type": "openai_chat",
                 "model": self.graphrag_model,
                 "api_base": self.graphrag_api_base,
@@ -77,7 +77,7 @@ class MicrosoftGraphRAGService:
                 "max_retries": int(os.getenv("GRAPHRAG_LLM_MAX_RETRIES", "3")),
             },
             "embeddings": {
-                "api_key": self.openai_api_key or self.deepseek_api_key,
+                # 不直接寫入 API key，使用環境變數
                 "type": "openai_embedding",
                 "model": self.graphrag_embedding_model,
                 "api_base": self.graphrag_api_base,
@@ -165,12 +165,22 @@ class MicrosoftGraphRAGService:
         (kb_path / "output").mkdir(exist_ok=True)
         (kb_path / "reporting").mkdir(exist_ok=True)
         
-        # 建立配置檔案
-        config = self._create_graphrag_config(kb_path)
+        # 使用 graphrag init 來建立基本配置，避免寫入 API key
+        # 先檢查是否已有設定檔
         config_file = kb_path / "settings.yaml"
-        
-        with open(config_file, 'w', encoding='utf-8') as f:
-            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+        if not config_file.exists():
+            try:
+                # 使用 graphrag init 建立基本配置
+                subprocess.run([
+                    "python", "-m", "graphrag", "init", "--root", str(kb_path)
+                ], capture_output=True, text=True, cwd=str(kb_path), check=True)
+                logging.info(f"Generated base GraphRAG config for {kb_id}")
+            except subprocess.CalledProcessError as e:
+                logging.warning(f"Failed to init GraphRAG config: {e}")
+                # 如果 init 失敗，建立最小配置
+                config = self._create_graphrag_config(kb_path)
+                with open(config_file, 'w', encoding='utf-8') as f:
+                    yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
         
         # 記錄知識庫資訊
         self.knowledge_bases[kb_id] = {
@@ -249,12 +259,16 @@ class MicrosoftGraphRAGService:
             # 執行 GraphRAG 索引建立
             logging.info(f"Starting GraphRAG indexing for knowledge base {kb_id}")
             
+            # 設置環境變數來傳遞 API key
+            env = os.environ.copy()
+            env["GRAPHRAG_API_KEY"] = self.openai_api_key or self.deepseek_api_key
+            
             # 使用 GraphRAG CLI 命令執行索引
             result = subprocess.run([
                 "python", "-m", "graphrag", "index",
                 "--root", str(kb_path),
                 "--verbose"
-            ], capture_output=True, text=True, cwd=str(kb_path))
+            ], capture_output=True, text=True, cwd=str(kb_path), env=env)
             
             if result.returncode == 0:
                 # 索引建立成功
@@ -320,12 +334,16 @@ class MicrosoftGraphRAGService:
             # 使用 GraphRAG CLI 執行查詢
             query_type = "local" if method == "local" else "global"
             
+            # 設置環境變數來傳遞 API key
+            env = os.environ.copy()
+            env["GRAPHRAG_API_KEY"] = self.openai_api_key or self.deepseek_api_key
+            
             result = subprocess.run([
                 "python", "-m", "graphrag", "query",
                 "--root", str(kb_path),
                 "--method", query_type,
                 "-q", query
-            ], capture_output=True, text=True, cwd=str(kb_path))
+            ], capture_output=True, text=True, cwd=str(kb_path), env=env)
             
             if result.returncode == 0:
                 answer = result.stdout.strip()
