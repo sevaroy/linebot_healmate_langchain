@@ -25,12 +25,13 @@ from langchain_deepseek.chat_models import ChatDeepSeek
 from functools import partial
 from langchain.tools import Tool
 
-from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool, _run_mood_history_tool
+from .tools import strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool, _run_mood_history_tool, SIMPLE_GRAPHRAG_TOOLS
+from .microsoft_graphrag_tools import MICROSOFT_GRAPHRAG_TOOLS
 
 # --- Agent Initialization ---
 
 # 1. Define the base tools the agent can use (without user-specific context)
-base_tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool]
+base_tools = [strategy_tool, tarot_reading_tool, emotion_analysis_tool, random_tarot_reading_tool, horoscope_tool, knowledge_base_tool] + SIMPLE_GRAPHRAG_TOOLS + MICROSOFT_GRAPHRAG_TOOLS
 
 # The mood_history_tool will be created dynamically per user request.
 

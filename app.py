@@ -82,6 +82,14 @@ app = FastAPI(
     openapi_url=None  # 關閉 OpenAPI schema 生成
 )
 
+# 註冊 GraphRAG API 路由
+try:
+    from api.graphrag_endpoints import router as graphrag_router
+    app.include_router(graphrag_router)
+    logging.info("GraphRAG API endpoints loaded successfully")
+except ImportError as e:
+    logging.warning(f"GraphRAG endpoints not available: {e}")
+
 # 快取機制 - 為常用操作提供快取
 cache = {}
 

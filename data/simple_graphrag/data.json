@@ -1,0 +1,16 @@
+{
+  "knowledge_bases": {
+    "cc380a6c-933e-40d5-bf53-dcbfbe93c52a": {
+      "name": "知識庫_20250720_111130",
+      "user_id": "default_user",
+      "created_at": "2025-07-20T11:11:30.918652",
+      "status": "created",
+      "documents": [],
+      "last_indexed": null
+    }
+  },
+  "documents": {},
+  "entities": {},
+  "relationships": {},
+  "updated_at": "2025-07-20T11:11:30.918664"
+}

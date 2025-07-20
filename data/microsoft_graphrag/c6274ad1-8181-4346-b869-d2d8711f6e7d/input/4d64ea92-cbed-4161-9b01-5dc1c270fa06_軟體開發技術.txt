@@ -1,0 +1,7 @@
+軟體開發是一個複雜的過程，涉及需求分析、系統設計、程式編寫、測試和維護等階段。敏捷開發（Agile Development）是現代軟體開發的主流方法論，強調迭代開發和客戶協作。
+
+DevOps文化結合了開發（Development）和運維（Operations），通過自動化流程提高軟體交付效率。容器技術如Docker和Kubernetes在現代軟體部署中扮演重要角色。
+
+雲端運算（Cloud Computing）改變了軟體的部署和運行模式。Amazon AWS、Microsoft Azure、Google Cloud Platform等雲端平台提供了豐富的服務。微服務架構（Microservices）將大型應用拆分為小型、獨立的服務，提高了系統的可擴展性和維護性。
+
+開源軟體（Open Source Software）推動了技術創新，GitHub成為全球最大的程式碼託管平台。Python、JavaScript、Java等程式語言在不同領域都有廣泛應用。

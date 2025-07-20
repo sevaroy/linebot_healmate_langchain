@@ -1,0 +1,5 @@
+人工智慧（Artificial Intelligence，AI）是一個迅速發展的領域。機器學習（Machine Learning）是AI的核心技術之一，通過算法讓電腦從數據中學習模式。深度學習（Deep Learning）是機器學習的子領域，使用神經網路來處理複雜問題。
+
+大型語言模型（Large Language Models，LLM）如GPT、Claude等，代表了AI在自然語言處理方面的重大突破。這些模型能夠理解和生成人類語言，在翻譯、寫作、程式設計等領域表現出色。
+
+GraphRAG（Graph Retrieval-Augmented Generation）是一種新興技術，結合了知識圖譜和檢索增強生成，能夠更好地理解和回答複雜問題。Microsoft開發的GraphRAG框架在企業知識管理和智能問答系統中表現優異。

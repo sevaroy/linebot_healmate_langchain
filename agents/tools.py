@@ -343,6 +343,10 @@ knowledge_base_tool = Tool(
 )
 
 
+# --- Import Simple GraphRAG Tools ---
+from agents.simple_graphrag_tools import SIMPLE_GRAPHRAG_TOOLS
+
+
 import httpx
 import re
 
