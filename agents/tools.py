@@ -30,8 +30,10 @@ qdrant_client = QdrantClient(
     url=os.getenv("QDRANT_URL"),
     api_key=qdrant_api_key if qdrant_api_key else None,
 )
-# Use the same embedding model as the one used to create the collection
-embeddings = OllamaEmbeddings(model="nomic-embed-text")
+# Use DeepSeek-compatible embeddings instead of Ollama for better reliability
+# Note: For production use, consider using OpenAI embeddings or other cloud services
+# For now, we'll disable RAG-based tarot reading due to embedding service unavailability
+embeddings = None  # OllamaEmbeddings(model="nomic-embed-text")
 
 
 # --- Tarot Reading Tool (RAG Version) ---
@@ -47,6 +49,11 @@ TAROT_SYSTEM_PROMPT = """你是一位專業的塔羅牌占卜師，你的任務�
 async def _run_tarot_tool(query: str) -> str:
     """The core logic for the tarot reading tool, using RAG with Qdrant."""
     try:
+        # Check if embeddings service is available
+        if embeddings is None:
+            print("[Tarot Tool] Embedding service unavailable, falling back to RandomTarotReader")
+            return "Embedding service is currently unavailable. Please use the random tarot reading instead."
+        
         print("[Tarot Tool] 步驟 1: 開始向量化查詢...")
         query_vector = embeddings.embed_query(query)
         print("[Tarot Tool] 步驟 2: 查詢已向量化，正在搜尋 Qdrant...")
@@ -202,7 +209,7 @@ strategy_tool = Tool(
 # --- New Random Tarot Reading Tool ---
 
 import random
-from data.tarot_data import TAROT_CARDS
+from services.tarot import TarotService
 
 RANDOM_TAROT_SYSTEM_PROMPT = """你是一位專業的塔羅牌占卜師，你的任務是為用戶解讀隨機抽到的塔羅牌。
 請根據用戶的問題以及抽到的牌（包含其正逆位），提供一段溫暖、有啟發性且具體的解讀。
@@ -221,20 +228,17 @@ async def _run_random_tarot_tool(query: str) -> str:
     try:
         print("[Random Tarot Tool] 步驟 1: 開始隨機抽牌...")
         
-        # Randomly select one card from the list
-        card = random.choice(TAROT_CARDS)
+        # Use TarotService to randomly select a card (which already includes orientation)
+        drawn_card = TarotService.draw(1)[0]
         
-        # Randomly determine the orientation (upright or reversed)
-        orientation = random.choice(['upright', 'reversed'])
+        card_name = drawn_card['name']
         
-        card_name = card['name']
-        
-        if orientation == 'upright':
+        if drawn_card['orientation'] == 'upright':
             orientation_text = "正位"
-            meaning = card['meaning_up']
         else:
             orientation_text = "逆位"
-            meaning = card['meaning_rev']
+        
+        meaning = drawn_card['meaning']
 
         print(f"[Random Tarot Tool] 步驟 2: 抽牌完成。抽到的是 {card_name} ({orientation_text})。")
 
@@ -276,12 +280,12 @@ random_tarot_reading_tool = Tool(
 # --- Horoscope Tool ---
 
 from core.database import SessionLocal
-from core.crud import get_mood_entries_by_user
+from core.crud import get_mood_entries_by_user, get_mood_summary_by_user
 
 
 # --- Mood History Tool ---
 
-async def _run_mood_history_tool(user_id: str, query: str = "") -> str:
+async def _run_mood_history_tool(query: str = "", user_id: str = None) -> str:
     """Fetches the user's recent mood history from the database and provides a summary."""
     if not user_id:
         return "無法查詢心情歷史，因為缺少 user_id。"

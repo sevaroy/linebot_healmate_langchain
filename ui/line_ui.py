@@ -733,8 +733,8 @@ def check_for_menu_keywords(text: str) -> Optional[str]:
     if any(keyword in text for keyword in ["選單", "功能", "menu", "幫助", "說明", "help"]):
         return "main_menu"
     
-    # 檢查塔羅牌關鍵字
-    elif any(keyword in text for keyword in ["塔羅", "tarot", "占卜", "抽牌"]):
+    # 檢查塔羅牌選單關鍵字（但排除具體的抽牌請求）
+    elif any(keyword in text for keyword in ["塔羅", "tarot", "占卜"]) and not any(request in text for request in ["抽牌", "抽一張", "隨機抽", "給我抽"]):
         return "tarot_menu"
     
     # 檢查星座關鍵字
