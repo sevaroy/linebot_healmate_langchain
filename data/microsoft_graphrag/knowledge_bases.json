@@ -1,0 +1,18 @@
+{
+  "31abffc1-8f1a-4aba-b20b-7f3349decf2c": {
+    "name": "GraphRAG 運作示範",
+    "user_id": "demo_user",
+    "created_at": "2025-07-20T14:16:54.575265",
+    "status": "needs_indexing",
+    "path": "/app/data/microsoft_graphrag/31abffc1-8f1a-4aba-b20b-7f3349decf2c",
+    "documents": [
+      {
+        "doc_id": "4e781249-3e79-4dc9-9d6e-ab3862b6d2bb",
+        "filename": "AI技術概述.txt",
+        "file_path": "/app/data/microsoft_graphrag/31abffc1-8f1a-4aba-b20b-7f3349decf2c/input/4e781249-3e79-4dc9-9d6e-ab3862b6d2bb_AI技術概述.txt",
+        "added_at": "2025-07-20T14:16:54.576326"
+      }
+    ],
+    "last_indexed": null
+  }
+}

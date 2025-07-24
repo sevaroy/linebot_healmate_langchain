@@ -40,8 +40,11 @@ from typing import Dict, Any, List, Optional  # 用於類型提示
 import aiofiles            # 異步文件處理
 import re                  # 正則表達式處理
 
-# Import our new LangChain agent
-from agents.langchain_agent import invoke_agent
+# Import our new LangChain agent (原版)
+# from agents.langchain_agent import invoke_agent
+
+# Import our pure emotion agent
+from agents.pure_emotion_agent import invoke_emotion_agent
 
 # Import our new LINE UI module
 from ui.line_ui import (
@@ -321,107 +324,17 @@ async def handle_text_message(event: MessageEvent, line_bot_api: MessagingApi):
     logging.info(f"Received text message from {user_id}: {text}")
 
     try:
-        # 檢查是否是請求選單的關鍵詞
-        menu_type = check_for_menu_keywords(text)
-        
-        # 處理選單請求
-        if menu_type == "main_menu":
-            # 回傳主選單
-            main_menu = create_main_menu_flex()
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[main_menu]
-            )
-            line_bot_api.reply_message(reply_message_request)
-            return
-        elif menu_type == "tarot_menu":
-            # 回傳塔羅牌選單
-            tarot_menu = create_tarot_buttons()
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[tarot_menu]
-            )
-            line_bot_api.reply_message(reply_message_request)
-            return
-        elif menu_type == "horoscope_menu":
-            # 回傳星座運勢選單
-            horoscope_menu = create_horoscope_menu_flex()
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[horoscope_menu]
-            )
-            line_bot_api.reply_message(reply_message_request)
-            return
-        elif menu_type == "daily_fortune":
-            # 回傳每日運勢選單
-            daily_fortune_menu = create_daily_fortune_flex()
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[daily_fortune_menu]
-            )
-            line_bot_api.reply_message(reply_message_request)
-            return
-        elif menu_type == "mood_diary":
-            # 回傳心情日記選單
-            mood_diary_menu = create_mood_diary_flex()
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[mood_diary_menu]
-            )
-            line_bot_api.reply_message(reply_message_request)
-            return
-        
-        # 檢查是否包含星座關鍵字
-        contains_zodiac = False
-        for sign_ch in HOROSCOPE_SIGNS.keys():
-            if sign_ch in text:
-                contains_zodiac = True
-                break
+        # 純情緒處理模式：移除所有選單和功能性檢查，直接進行情緒處理
                 
-        # 如果請求包含星座關鍵字並提到運勢，直接調用 LangChain agent
-        if contains_zodiac and any(keyword in text for keyword in ["運勢", "今天", "明天", "運氣"]):
-            logging.info(f"User {user_id} requested horoscope for specific zodiac sign")
-            response_data = await invoke_agent(user_id=user_id, text_message=text)
-            ai_reply = response_data.get("reply", "抱歉，我現在有點問題，晚點再試一次。")
-            
-            # 回覆給用戶，並添加快速回覆按鈕供其他星座選擇
-            quick_reply = create_zodiac_quick_reply()
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=ai_reply, quick_reply=quick_reply)]
-            )
-            line_bot_api.reply_message(reply_message_request)
-            return
+        # 所有訊息都交由純情緒代理人處理
+        response_data = await invoke_emotion_agent(user_id=user_id, text_message=text)
+        ai_reply = response_data.get("reply", "抱歉，我現在有點情緒化，需要一點時間整理思緒。💙")
         
-        # 其他一般請求交由 LangChain agent 處理
-        response_data = await invoke_agent(user_id=user_id, text_message=text)
-        ai_reply = response_data.get("reply", "抱歉，我現在有點問題，晚點再試一次。")
-        
-        # 檢查回覆中是否包含特定關鍵字，決定是否添加互動按鈕
-        if any(keyword in ai_reply for keyword in ["塔羅牌", "占卜", "抽牌", "tarot"]):
-            # 回覆包含塔羅相關內容，添加塔羅按鈕
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[
-                    TextMessage(text=ai_reply),
-                    create_tarot_buttons()
-                ]
-            )
-        elif any(keyword in ai_reply for keyword in ["星座", "運勢", "horoscope", "zodiac"]):
-            # 回覆包含星座相關內容，添加星座選單
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[
-                    TextMessage(text=ai_reply),
-                    create_horoscope_menu_flex()
-                ]
-            )
-        else:
-            # 一般回覆，不添加特殊按鈕
-            reply_message_request = ReplyMessageRequest(
-                reply_token=event.reply_token,
-                messages=[TextMessage(text=ai_reply)]
-            )
+        # 純情緒處理機器人，不添加功能性按鈕，只專注於情緒陪伴
+        reply_message_request = ReplyMessageRequest(
+            reply_token=event.reply_token,
+            messages=[TextMessage(text=ai_reply)]
+        )
             
         line_bot_api.reply_message(reply_message_request)
 
